@@ -13,6 +13,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import io.vertx.core.Future;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.awaitility.core.ConditionTimeoutException;
@@ -45,7 +46,7 @@ public class MockOkapi {
   public static final String MOCK_TOKEN = "mynameisyonyonsonicomefromwisconsoniworkatalumbermillthereallthepeopleimeetasiwalkdownthestreetaskhowinthehelldidyougethereisaymynameisyonyonsonicomefromwisconson";
 
   public final int okapiPort;
-  protected final Vertx vertx;
+  public final Vertx vertx;
   protected final List<String> knownTenants;
 
   public MockOkapi(int port, List<String> knownTenants) {
@@ -54,17 +55,11 @@ public class MockOkapi {
     this.knownTenants = knownTenants == null ? new ArrayList<>() : knownTenants;
   }
 
+  public Future<Void> close() {
+    return vertx.close();
+  }
   public void close(TestContext context) {
-    final Async async = context.async();
-    vertx.close(res -> {
-      if (res.failed()) {
-        logger.error("Failed to shut down mock OKAPI server", res.cause());
-        fail(res.cause().getMessage());
-      } else {
-        logger.info("Successfully shut down mock OKAPI server");
-      }
-      async.complete();
-    });
+    close().onComplete(context.asyncAssertSuccess());
   }
 
   protected Router defineRoutes() {
@@ -79,19 +74,13 @@ public class MockOkapi {
     return router;
   }
 
-  public void start(TestContext context) {
-
-    // Setup Mock Okapi...
+  public Future<Void> start() {
     HttpServer server = vertx.createHttpServer();
+    return server.requestHandler(defineRoutes()).listen(okapiPort).mapEmpty();
+  }
 
-    final Async async = context.async();
-    server.requestHandler(defineRoutes()).listen(okapiPort, result -> {
-      if (result.failed()) {
-        logger.warn(result.cause());
-      }
-      context.assertTrue(result.succeeded());
-      async.complete();
-    });
+  public void start(TestContext context) {
+    start().onComplete(context.asyncAssertSuccess());
   }
 
   public void durationHandler(RoutingContext ctx) {
